@@ -1,0 +1,20 @@
+# VCS
+.git
+.gitignore
+
+# Dependencies — installed fresh inside the image via npm ci
+node_modules
+**/node_modules
+
+# Build outputs — rebuilt inside the image
+dist
+**/dist
+**/dist-bundle
+
+# Docs — not needed for build or runtime
+docs
+
+# Local env files / logs — never baked into an image
+*.local
+.env
+*.log

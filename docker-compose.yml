@@ -1,0 +1,21 @@
+# Local single-container verification of the portal image.
+# Backends are deployed externally; point the variables at reachable endpoints.
+#
+#   docker compose up --build
+#   open http://localhost:8080
+#
+# Override backend endpoints from your shell environment, e.g.:
+#   REGISTRY_URL=http://192.168.1.10:5000 BACKEND_URL=http://192.168.1.10:5001 docker compose up --build
+services:
+  portal:
+    build: .
+    image: openan-portal:local
+    ports:
+      - "8080:80"
+    environment:
+      # Defaults target backends running on the Docker host
+      # (host-gateway mapping also works on Linux Docker 20.10+).
+      REGISTRY_URL: ${REGISTRY_URL:-http://host.docker.internal:5000}
+      BACKEND_URL: ${BACKEND_URL:-http://host.docker.internal:5001}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
