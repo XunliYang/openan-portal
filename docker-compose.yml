@@ -11,7 +11,8 @@ services:
     build: .
     image: openan-portal:local
     ports:
-      - "8080:80"
+      # Container listens on 8080 (unprivileged nginx, non-root).
+      - "8080:8080"
     environment:
       # Defaults target backends running on the Docker host
       # (host-gateway mapping also works on Linux Docker 20.10+).

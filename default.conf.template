@@ -19,7 +19,8 @@
 #       -> ${BACKEND_URL}/rest/v1/orchestrate/*        (direct, no rewrite)
 
 server {
-    listen 80;
+    # Unprivileged nginx (non-root, OpenShift-compatible) listens on 8080.
+    listen 8080;
     server_name localhost;
     root /usr/share/nginx/html;
     index index.html;
