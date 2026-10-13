@@ -21,15 +21,18 @@
 # (portal/dist/, source-mode plugins compiled in) and serves it with nginx.
 # The runtime stage uses the unprivileged nginx image so the container runs
 # as a non-root user under arbitrary UIDs (OpenShift-compatible), listening
-# on port 8080. Backend services are deployed externally; their endpoints
-# are injected at container start via environment variables
-# (see default.conf.template):
+# on port 8080. Backend endpoints default to the in-cluster service names
+# (see 15-openan-backends.envsh) and can be overridden at container start:
 #
 #   docker build -t openan-portal .
+#   docker run -p 8080:8080 openan-portal                       # in-cluster defaults
+#   docker run -p 8080:8080 \
+#       -e BACKEND_HOST=192.168.1.10 -e REGISTRY_HOST=192.168.1.11 \
+#       openan-portal                                           # component override
 #   docker run -p 8080:8080 \
 #       -e REGISTRY_URL=http://registry-host:5000 \
 #       -e BACKEND_URL=http://orchestrate-host:5001 \
-#       openan-portal
+#       openan-portal                                           # full URL override
 
 # ---- Build stage: compile the Portal SPA (Vite 8 requires Node >= 20.19) ----
 FROM node:22-alpine AS build
@@ -54,12 +57,30 @@ RUN npm run build
 # ---- Runtime stage: unprivileged nginx serves the static output ----
 # nginxinc/nginx-unprivileged runs as the nginx user (uid 101) and tolerates
 # arbitrary UIDs with GID 0, as enforced by OpenShift's restricted SCC.
-FROM nginxinc/nginx-unprivileged:alpine
+FROM nginxinc/nginx-unprivileged:1.27-alpine
 
 COPY --from=build /app/portal/dist /usr/share/nginx/html
 
 # envsubst template: rendered to /etc/nginx/conf.d/default.conf at container
 # start, substituting ${REGISTRY_URL} and ${BACKEND_URL} from the environment.
 COPY default.conf.template /etc/nginx/templates/default.conf.template
+
+COPY 15-openan-backends.envsh /docker-entrypoint.d/15-openan-backends.envsh
+
+# The unprivileged base image builds as uid 101; escalate briefly to
+# normalize line endings (CRLF Windows checkout) and set the exec bit —
+# the nginx entrypoint only sources executable *.envsh files.
+USER root
+RUN sed -i 's/\r$//' /docker-entrypoint.d/15-openan-backends.envsh \
+    && chmod 0755 /docker-entrypoint.d/15-openan-backends.envsh
+USER nginx
+
+# Backend endpoint components; defaults match the in-cluster service names.
+ENV REGISTRY_HOST=registry-center \
+    REGISTRY_PORT=5000 \
+    REGISTRY_SCHEME=http \
+    BACKEND_HOST=orchestration-center \
+    BACKEND_PORT=5001 \
+    BACKEND_SCHEME=http
 
 EXPOSE 8080

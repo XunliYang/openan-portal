@@ -5,9 +5,13 @@
 # Only variables present in the container environment are substituted;
 # nginx's own variables ($2, $host, $uri, ...) are left untouched.
 #
-# Required environment variables (no defaults — set at `docker run`):
-#   BACKEND_URL   Orchestration Center backend base URL, e.g. http://orchestration-center:5001
-#   REGISTRY_URL  Registry Center backend base URL, e.g. http://registry-center:5000
+# Variables substituted (composed by 15-openan-backends.envsh unless the
+# deployer set them explicitly; component defaults point at the in-cluster
+# service names):
+#   BACKEND_URL   Orchestration Center backend base URL
+#                 (default: http://orchestration-center:5001)
+#   REGISTRY_URL  Registry Center backend base URL
+#                 (default: http://registry-center:5000)
 #
 # Frontend call paths (mirrors portal/vite.config.js dev proxies and the
 # current production deployment):
