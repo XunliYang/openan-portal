@@ -19,10 +19,10 @@
 #
 # The Portal is a pure frontend SPA: this image builds the static output
 # (portal/dist/, source-mode plugins compiled in) and serves it with nginx.
-# The runtime stage uses the unprivileged nginx image so the container runs
-# as a non-root user under arbitrary UIDs (OpenShift-compatible), listening
-# on port 8080. Backend endpoints default to the in-cluster service names
-# (see 15-openan-backends.envsh) and can be overridden at container start:
+# nginx runs as an unprivileged user (uid 101, arbitrary-UID tolerant for
+# OpenShift's restricted SCC), listening on port 8080. Backend endpoints
+# default to the in-cluster service names (see 15-openan-backends.envsh)
+# and can be overridden at container start:
 #
 #   docker build -t openan-portal .
 #   docker run -p 8080:8080 openan-portal                       # in-cluster defaults
@@ -54,10 +54,10 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-# ---- Runtime stage: unprivileged nginx serves the static output ----
-# nginxinc/nginx-unprivileged runs as the nginx user (uid 101) and tolerates
-# arbitrary UIDs with GID 0, as enforced by OpenShift's restricted SCC.
-FROM nginxinc/nginx-unprivileged:1.27-alpine
+# ---- Runtime stage: nginx serves the static output ----
+# Runs as the nginx user (uid 101) with arbitrary-UID (GID 0) tolerance,
+# as enforced by OpenShift's restricted SCC; nginx listens on 8080.
+FROM nginx:1.27-alpine
 
 COPY --from=build /app/portal/dist /usr/share/nginx/html
 
@@ -67,13 +67,17 @@ COPY default.conf.template /etc/nginx/templates/default.conf.template
 
 COPY 15-openan-backends.envsh /docker-entrypoint.d/15-openan-backends.envsh
 
-# The unprivileged base image builds as uid 101; escalate briefly to
-# normalize line endings (CRLF Windows checkout) and set the exec bit —
-# the nginx entrypoint only sources executable *.envsh files.
-USER root
+# sed strips CR in case of a CRLF (Windows) checkout; the nginx entrypoint
+# only sources executable *.envsh files.
 RUN sed -i 's/\r$//' /docker-entrypoint.d/15-openan-backends.envsh \
     && chmod 0755 /docker-entrypoint.d/15-openan-backends.envsh
-USER nginx
+
+
+RUN sed -i 's/^user /#user /' /etc/nginx/nginx.conf \
+    && touch /var/run/nginx.pid \
+    && chown -R 101:0 /var/cache/nginx /var/run/nginx.pid /etc/nginx \
+    && chmod -R g+w /var/cache/nginx /var/run/nginx.pid /etc/nginx
+USER 101
 
 # Backend endpoint components; defaults match the in-cluster service names.
 ENV REGISTRY_HOST=registry-center \
